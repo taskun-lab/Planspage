@@ -175,6 +175,8 @@
       padding: 24px 0;
     }
   </style>
+
+  <!-- LIFF SDK & Chart.js -->
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -223,12 +225,16 @@
     <section class="bottom-metrics">
       <div class="metric-card">
         <div class="metric-label">タスク完了率</div>
-        <div class="metric-main"><span id="taskCompleteRate">0</span>%</div>
+        <div class="metric-main">
+          <span id="taskCompleteRate">0</span>%
+        </div>
         <div class="metric-extra" id="taskCompleteDetail">0 / 0 件</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">意味量スコア</div>
-        <div class="metric-main"><span id="meaningScore">0</span> / 100</div>
+        <div class="metric-main">
+          <span id="meaningScore">0</span> / 100
+        </div>
         <div class="metric-extra">ビジョン・成長・わくわくの総合評価</div>
       </div>
     </section>
@@ -252,107 +258,192 @@
 </nav>
 
 <script>
-  const LIFF_ID_STATUS = 'YOUR_LIFF_ID_STATUS';
-  const API_BASE = 'https://yamasho.xvps.jp/webhook';
+  // ★ タスクページと同じ構成に寄せた定数たち
+  // TODO: 実際の「ステータス用 LIFF ID」に差し替えてね
+  const LIFF_ID_STATUS = "YOUR_LIFF_ID_STATUS";
+  const API_BASE = "https://yamasho.xvps.jp/webhook";
 
-  let radarChart = null;
   let userId = null;
+  let radarChart = null;
 
+  /* ==========================
+     init（タスクページと同じ流れ）
+  ========================== */
   async function init() {
-    await liff.init({ liffId: LIFF_ID_STATUS });
-    if (!liff.isLoggedIn()) liff.login();
     try {
+      console.log("[STATUS] liff.init start");
+      await liff.init({ liffId: LIFF_ID_STATUS });
+
+      if (!liff.isLoggedIn()) {
+        console.log("[STATUS] not logged in -> login()");
+        liff.login();
+        return;
+      }
+
       const profile = await liff.getProfile();
       userId = profile.userId;
-    } catch (e) {
-      console.error(e);
-      alert('ユーザー情報の取得に失敗しました');
-      return;
-    }
+      console.log("[STATUS] userId:", userId);
 
-    await loadStatus();
+      await loadStatus();
+    } catch (e) {
+      console.error("[STATUS] LIFF init error:", e);
+      alert("LIFF初期化に失敗しました");
+      document.getElementById("loading").textContent = "LIFF初期化に失敗しました";
+    }
   }
 
+  /* ==========================
+     ステータス読み込み
+  ========================== */
   async function loadStatus() {
-    const loadingEl = document.getElementById('loading');
-    const mainContent = document.getElementById('mainContent');
-    loadingEl.style.display = 'block';
-    mainContent.style.display = 'none';
+    const loadingEl = document.getElementById("loading");
+    const mainContent = document.getElementById("mainContent");
+
+    loadingEl.style.display = "block";
+    mainContent.style.display = "none";
+
+    const listUrl = `${API_BASE}/list?user_id=${encodeURIComponent(userId)}`;
+    console.log("[STATUS] request:", listUrl);
 
     try {
-      const listUrl = `${API_BASE}/list?user_id=${encodeURIComponent(userId)}`;
       const res = await fetch(listUrl);
-      if (!res.ok) throw new Error('list api failed');
-      const listData = await res.json();
+      const raw = await res.text();
 
-      // journalingは今は0。将来 /journal を叩く形に
-      const journalStats = await fetchJournalStats();
+      console.log("[STATUS] list status:", res.status);
+      console.log("[STATUS] raw response:", JSON.stringify(raw));
 
+      if (!res.ok) {
+        console.error("[STATUS] http error:", res.status, raw);
+        alert("タスク一覧の取得に失敗しました（HTTPエラー）");
+        loadingEl.textContent = "読み込みに失敗しました…";
+        return;
+      }
+
+      if (!raw) {
+        console.warn("[STATUS] 空レスポンスでした");
+        const emptyList = { pinned: [], active: [], completed: [] };
+        const journalStats = await fetchJournalStatsSafe();
+        const statsEmpty = computeStats(emptyList, journalStats);
+
+        renderSummary(statsEmpty);
+        renderRadar(statsEmpty);
+        renderBottomMetrics(statsEmpty);
+
+        loadingEl.style.display = "none";
+        mainContent.style.display = "block";
+        return;
+      }
+
+      let listData;
+      try {
+        listData = JSON.parse(raw);
+      } catch (e) {
+        console.error("[STATUS] JSONパースエラー:", e);
+        alert("サーバーからJSONが返ってきていません");
+        loadingEl.textContent = "データ形式エラーが発生しました";
+        return;
+      }
+
+      console.log("[STATUS] parsed json:", listData);
+
+      const journalStats = await fetchJournalStatsSafe();
       const stats = computeStats(listData, journalStats);
+
       renderSummary(stats);
       renderRadar(stats);
       renderBottomMetrics(stats);
 
-      loadingEl.style.display = 'none';
-      mainContent.style.display = 'block';
+      loadingEl.style.display = "none";
+      mainContent.style.display = "block";
     } catch (e) {
-      console.error(e);
-      alert('ステータスの取得に失敗しました');
-      loadingEl.textContent = '読み込みに失敗しました…';
+      console.error("[STATUS] fetch error:", e);
+      alert("ステータスの取得に失敗しました（通信エラー）");
+      loadingEl.textContent = "読み込みに失敗しました…";
     }
   }
 
-  async function fetchJournalStats() {
-    // TODO: /journal?user_id=... を作ったらここで取得
-    return {
-      count: 0,
-      continueRate: 0 // 0〜100
-    };
+  /* ==========================
+     ジャーナル統計（将来拡張用）
+  ========================== */
+  async function fetchJournalStatsSafe() {
+    try {
+      // TODO: /journal_stats?user_id=... ができたらここで本物を叩く
+      // const url = `${API_BASE}/journal_stats?user_id=${encodeURIComponent(userId)}`;
+      // const res = await fetch(url);
+      // const data = await res.json();
+      // return { count: data.count ?? 0, continueRate: data.continueRate ?? 0 };
+      return {
+        count: 0,
+        continueRate: 0
+      };
+    } catch (e) {
+      console.error("[STATUS] fetchJournalStats error:", e);
+      return {
+        count: 0,
+        continueRate: 0
+      };
+    }
   }
 
+  /* ==========================
+     集計ロジック
+  ========================== */
   function computeStats(listData, journal) {
-    const pinned = listData.pinned || [];
-    const active = listData.active || [];
-    const completed = listData.completed || [];
-
+    const pinned = Array.isArray(listData.pinned) ? listData.pinned : [];
+    const active = Array.isArray(listData.active) ? listData.active : [];
+    const completed = Array.isArray(listData.completed) ? listData.completed : [];
     const allTasks = [...pinned, ...active, ...completed];
 
     const totalTasks = allTasks.length;
     const completedTasks = completed.length;
     const activeTasks = totalTasks - completedTasks;
 
-    const taskCompleteRate = totalTasks ? Math.round(completedTasks / totalTasks * 100) : 0;
+    const taskCompleteRate = totalTasks
+      ? Math.round((completedTasks / totalTasks) * 100)
+      : 0;
 
+    // 直近7日間の継続度（何日タスクを完了したか）
     const now = new Date();
     const msPerDay = 24 * 60 * 60 * 1000;
     const sevenDaysAgo = new Date(now.getTime() - 6 * msPerDay); // 今日含め7日
 
     const perDay = {};
     let completedIn7 = 0;
+
     for (const t of completed) {
       if (!t.completed_at) continue;
       const dt = new Date(t.completed_at);
+      if (isNaN(dt.getTime())) continue;
       if (dt < sevenDaysAgo) continue;
-      const key = dt.toISOString().slice(0, 10);
+
+      const key = dt.toISOString().slice(0, 10); // yyyy-mm-dd
       perDay[key] = (perDay[key] || 0) + 1;
       completedIn7++;
     }
+
     const distinctDays = Object.keys(perDay).length;
-    const taskContinueRate = Math.round(distinctDays / 7 * 100);
+    const taskContinueRate = Math.round((distinctDays / 7) * 100);
 
     const avgTaskPerDay = +(completedIn7 / 7).toFixed(2);
-    const avgTaskPerDayScaled = Math.min(100, Math.round((avgTaskPerDay / 5) * 100));
+    // 1日5件完了で100点になるようにスケーリング
+    const avgTaskPerDayScaled = Math.min(
+      100,
+      Math.round((avgTaskPerDay / 5) * 100)
+    );
 
+    // 意味量スコア（タスクごとの意味量の平均）
     let meaningTotal = 0;
     let meaningCount = 0;
     for (const t of allTasks) {
       const m = meaningScoreOfTask(t);
-      if (!isNaN(m)) {
+      if (!isNaN(m) && m > 0) {
         meaningTotal += m;
         meaningCount++;
       }
     }
-    const meaningScore = meaningCount ? Math.round(meaningTotal / meaningCount) : 0;
+    const meaningScore = meaningCount
+      ? Math.round(meaningTotal / meaningCount)
+      : 0;
 
     const journalCount = journal.count || 0;
     const journalContinueRate = journal.continueRate || 0;
@@ -371,56 +462,64 @@
     };
   }
 
+  // タスク1件あたりの「意味量スコア」
   function meaningScoreOfTask(t) {
     const v = Number(t.vision_score ?? 0);
     const e = Number(t.excite_score ?? 0);
     const g = Number(t.growth_score ?? 0);
     const p = Number(t.priority ?? 0);
-    if ([v,e,g,p].every(x => x === 0)) return 0;
+
+    if ([v, e, g, p].every((x) => x === 0)) return 0;
+
     // 仕様の式：10×(0.35*vision + 0.25*excite + 0.25*growth + 0.15*priority)
-    const score = 10 * (0.35*v + 0.25*e + 0.25*g + 0.15*p);
+    const score = 10 * (0.35 * v + 0.25 * e + 0.25 * g + 0.15 * p);
     return Math.round(score);
   }
 
+  /* ==========================
+     DOM更新系
+  ========================== */
   function renderSummary(stats) {
-    document.getElementById('totalTasks').textContent = stats.totalTasks;
-    document.getElementById('completedTasks').textContent = stats.completedTasks;
-    document.getElementById('activeTasks').textContent = stats.activeTasks;
-    document.getElementById('journalCount').textContent = stats.journalCount;
+    document.getElementById("totalTasks").textContent = stats.totalTasks;
+    document.getElementById("completedTasks").textContent = stats.completedTasks;
+    document.getElementById("activeTasks").textContent = stats.activeTasks;
+    document.getElementById("journalCount").textContent = stats.journalCount;
   }
 
   function renderBottomMetrics(stats) {
-    document.getElementById('taskCompleteRate').textContent = stats.taskCompleteRate;
-    document.getElementById('taskCompleteDetail').textContent =
+    document.getElementById("taskCompleteRate").textContent =
+      stats.taskCompleteRate;
+    document.getElementById("taskCompleteDetail").textContent =
       `${stats.completedTasks} / ${stats.totalTasks} 件`;
-
-    document.getElementById('meaningScore').textContent = stats.meaningScore;
+    document.getElementById("meaningScore").textContent = stats.meaningScore;
   }
 
   function renderRadar(stats) {
-    const ctx = document.getElementById('radarChart').getContext('2d');
+    const ctx = document.getElementById("radarChart").getContext("2d");
 
     const data = {
       labels: [
-        'タスク完了率',
-        'タスク継続率',
-        '日記継続率',
-        '意味量スコア',
-        '平均タスク量'
+        "タスク完了率",
+        "タスク継続率",
+        "日記継続率",
+        "意味量スコア",
+        "平均タスク量"
       ],
-      datasets: [{
-        label: '成長スコア',
-        data: [
-          stats.taskCompleteRate,
-          stats.taskContinueRate,
-          stats.journalContinueRate,
-          stats.meaningScore,
-          stats.avgTaskPerDayScaled
-        ],
-        fill: true,
-        borderWidth: 2,
-        pointRadius: 3
-      }]
+      datasets: [
+        {
+          label: "成長スコア",
+          data: [
+            stats.taskCompleteRate,
+            stats.taskContinueRate,
+            stats.journalContinueRate,
+            stats.meaningScore,
+            stats.avgTaskPerDayScaled
+          ],
+          fill: true,
+          borderWidth: 2,
+          pointRadius: 3
+        }
+      ]
     };
 
     const options = {
@@ -430,8 +529,14 @@
         r: {
           beginAtZero: true,
           max: 100,
-          ticks: { stepSize: 25, display: true, showLabelBackdrop: false },
-          grid: { circular: true }
+          ticks: {
+            stepSize: 25,
+            display: true,
+            showLabelBackdrop: false
+          },
+          grid: {
+            circular: true
+          }
         }
       },
       plugins: {
@@ -440,9 +545,14 @@
     };
 
     if (radarChart) radarChart.destroy();
-    radarChart = new Chart(ctx, { type: 'radar', data, options });
+    radarChart = new Chart(ctx, {
+      type: "radar",
+      data,
+      options
+    });
   }
 
+  // ページロード時に即 init（LIST と同じスタイル）
   init();
 </script>
 </body>
