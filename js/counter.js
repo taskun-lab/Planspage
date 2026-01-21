@@ -446,6 +446,11 @@ class FeatureExtractor {
     }
 }
 
+// デバウンス設定（誤検出防止）
+const DEBOUNCE_FRAMES = 5;           // 状態遷移に必要な連続フレーム数
+const MIN_REP_DURATION_MS = 500;     // 1repの最小時間（ミリ秒）
+const VISIBILITY_THRESHOLD = 0.5;    // ランドマークの可視度閾値
+
 /**
  * 筋トレ回数カウンタークラス
  */
@@ -459,6 +464,11 @@ class ExerciseCounter {
         this.targetCount = 0;
         this.announcedAlmost = false;
         this.announcedComplete = false;
+
+        // デバウンス用
+        this.stageCounter = 0;        // 現在の状態が継続したフレーム数
+        this.pendingStage = null;     // 確定待ちの状態
+        this.lastCountTime = 0;       // 最後にカウントした時刻
     }
 
     reset() {
@@ -467,9 +477,58 @@ class ExerciseCounter {
         this.prevStage = null;
         this.announcedAlmost = false;
         this.announcedComplete = false;
+        // デバウンス用リセット
+        this.stageCounter = 0;
+        this.pendingStage = null;
+        this.lastCountTime = 0;
         if (this.featureExtractor) {
             this.featureExtractor.reset();
         }
+    }
+
+    /**
+     * ランドマークの可視度をチェック
+     */
+    _checkVisibility(landmarks, indices) {
+        for (const i of indices) {
+            if (!landmarks[i] || landmarks[i].visibility < VISIBILITY_THRESHOLD) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * デバウンス付きで状態を更新
+     * @returns {boolean} 状態が確定して変更されたらtrue
+     */
+    _updateStageWithDebounce(newStage) {
+        if (newStage === this.pendingStage) {
+            this.stageCounter++;
+        } else {
+            this.pendingStage = newStage;
+            this.stageCounter = 1;
+        }
+
+        // 連続フレーム数が閾値を超えたら状態確定
+        if (this.stageCounter >= DEBOUNCE_FRAMES && this.stage !== newStage) {
+            this.prevStage = this.stage;
+            this.stage = newStage;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * カウントアップ可能かチェック（時間制限）
+     */
+    _canCount() {
+        const now = Date.now();
+        if (now - this.lastCountTime < MIN_REP_DURATION_MS) {
+            return false;
+        }
+        this.lastCountTime = now;
+        return true;
     }
 
     setTarget(target) {
@@ -502,6 +561,9 @@ class ExerciseCounter {
     countPushup(landmarks) {
         if (!landmarks || landmarks.length < 17) return null;
 
+        // 可視度チェック（肩、肘、手首）
+        if (!this._checkVisibility(landmarks, [11, 13, 15])) return null;
+
         const shoulder = landmarks[11];
         const elbow = landmarks[13];
         const wrist = landmarks[15];
@@ -513,22 +575,31 @@ class ExerciseCounter {
             this.featureExtractor.addFrame(landmarks, 'pushup');
         }
 
-        this.prevStage = this.stage;
-
-        // 状態遷移でカウント
-        if (angle > 160) {
-            this.stage = 'up';
-            if (this.prevStage === 'down' && this.featureExtractor) {
-                this.featureExtractor.endRep('pushup');
-            }
+        // デバウンス付きで状態判定（閾値を厳しく）
+        let newStage = null;
+        if (angle > 165) {           // 160→165に厳しく
+            newStage = 'up';
+        } else if (angle < 80) {     // 90→80に厳しく
+            newStage = 'down';
         }
-        if (angle < 90 && this.stage === 'up') {
-            this.stage = 'down';
-            if (this.featureExtractor) {
-                this.featureExtractor.startRep();
+
+        if (newStage) {
+            const stageChanged = this._updateStageWithDebounce(newStage);
+
+            if (stageChanged) {
+                if (this.stage === 'up' && this.prevStage === 'down' && this.featureExtractor) {
+                    this.featureExtractor.endRep('pushup');
+                }
+                if (this.stage === 'down' && this.prevStage === 'up') {
+                    if (this.featureExtractor) {
+                        this.featureExtractor.startRep();
+                    }
+                    if (this._canCount()) {
+                        this.count++;
+                        this._onCountUp();
+                    }
+                }
             }
-            this.count++;
-            this._onCountUp();
         }
 
         return angle;
@@ -536,6 +607,9 @@ class ExerciseCounter {
 
     countSitup(landmarks) {
         if (!landmarks || landmarks.length < 27) return null;
+
+        // 可視度チェック（肩、腰、膝）
+        if (!this._checkVisibility(landmarks, [11, 23, 25])) return null;
 
         const shoulder = landmarks[11];
         const hip = landmarks[23];
@@ -548,22 +622,31 @@ class ExerciseCounter {
             this.featureExtractor.addFrame(landmarks, 'situp');
         }
 
-        this.prevStage = this.stage;
-
-        // 状態遷移でカウント
-        if (angle > 140) {
-            this.stage = 'down';
-            if (this.prevStage === 'up' && this.featureExtractor) {
-                this.featureExtractor.endRep('situp');
-            }
+        // デバウンス付きで状態判定（閾値を厳しく）
+        let newStage = null;
+        if (angle > 150) {           // 140→150に厳しく
+            newStage = 'down';
+        } else if (angle < 60) {     // 70→60に厳しく
+            newStage = 'up';
         }
-        if (angle < 70 && this.stage === 'down') {
-            this.stage = 'up';
-            if (this.featureExtractor) {
-                this.featureExtractor.startRep();
+
+        if (newStage) {
+            const stageChanged = this._updateStageWithDebounce(newStage);
+
+            if (stageChanged) {
+                if (this.stage === 'down' && this.prevStage === 'up' && this.featureExtractor) {
+                    this.featureExtractor.endRep('situp');
+                }
+                if (this.stage === 'up' && this.prevStage === 'down') {
+                    if (this.featureExtractor) {
+                        this.featureExtractor.startRep();
+                    }
+                    if (this._canCount()) {
+                        this.count++;
+                        this._onCountUp();
+                    }
+                }
             }
-            this.count++;
-            this._onCountUp();
         }
 
         return angle;
@@ -571,6 +654,9 @@ class ExerciseCounter {
 
     countSquat(landmarks) {
         if (!landmarks || landmarks.length < 27) return null;
+
+        // 可視度チェック（腰、膝、足首）
+        if (!this._checkVisibility(landmarks, [23, 25, 27])) return null;
 
         const hip = landmarks[23];
         const knee = landmarks[25];
@@ -583,22 +669,31 @@ class ExerciseCounter {
             this.featureExtractor.addFrame(landmarks, 'squat');
         }
 
-        this.prevStage = this.stage;
-
-        // 状態遷移でカウント
-        if (angle > 160) {
-            this.stage = 'up';
-            if (this.prevStage === 'down' && this.featureExtractor) {
-                this.featureExtractor.endRep('squat');
-            }
+        // デバウンス付きで状態判定（閾値を厳しく）
+        let newStage = null;
+        if (angle > 165) {           // 160→165に厳しく
+            newStage = 'up';
+        } else if (angle < 85) {     // 90→85に厳しく
+            newStage = 'down';
         }
-        if (angle < 90 && this.stage === 'up') {
-            this.stage = 'down';
-            if (this.featureExtractor) {
-                this.featureExtractor.startRep();
+
+        if (newStage) {
+            const stageChanged = this._updateStageWithDebounce(newStage);
+
+            if (stageChanged) {
+                if (this.stage === 'up' && this.prevStage === 'down' && this.featureExtractor) {
+                    this.featureExtractor.endRep('squat');
+                }
+                if (this.stage === 'down' && this.prevStage === 'up') {
+                    if (this.featureExtractor) {
+                        this.featureExtractor.startRep();
+                    }
+                    if (this._canCount()) {
+                        this.count++;
+                        this._onCountUp();
+                    }
+                }
             }
-            this.count++;
-            this._onCountUp();
         }
 
         return angle;

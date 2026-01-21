@@ -2,9 +2,12 @@
  * n8n Webhook通信クライアント
  * fetch APIを使用
  */
+// デフォルトのn8n Webhook URL
+const DEFAULT_WEBHOOK_URL = 'https://lumicreate.xvps.jp/webhook/form/coach';
+
 class FormCoachClient {
     constructor() {
-        this.webhookUrl = '';
+        this.webhookUrl = DEFAULT_WEBHOOK_URL;  // デフォルトURLを設定
         this.lastFeedback = null;
         this.lastError = null;
         this.isConnected = false;

@@ -43,6 +43,10 @@ async function initApp() {
     // イベントリスナー設定
     setupEventListeners();
 
+    // デフォルトのn8n URLを設定して接続テスト
+    elements.webhookUrl.value = DEFAULT_WEBHOOK_URL;
+    testConnectionSilent();  // 起動時に自動接続テスト
+
     // MediaPipe初期化
     try {
         await poseDetector.initialize(onPoseResults);
@@ -319,6 +323,25 @@ async function testConnection() {
         alert('接続成功！');
     } else {
         alert('接続失敗: ' + formCoachClient.getLastError());
+    }
+
+    updateDisplay(null);
+}
+
+/**
+ * 起動時の自動接続テスト（サイレント）
+ */
+async function testConnectionSilent() {
+    const url = elements.webhookUrl.value.trim();
+    if (!url) return;
+
+    formCoachClient.setWebhookUrl(url);
+    const success = await formCoachClient.checkConnection();
+
+    if (success) {
+        console.log('n8n自動接続成功');
+    } else {
+        console.log('n8n自動接続失敗:', formCoachClient.getLastError());
     }
 
     updateDisplay(null);
