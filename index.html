@@ -1,1002 +1,149 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>STATUS｜ステータス</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-    <style>
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, system-ui, 'Segoe UI', sans-serif;
-            margin: 0;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            min-height: 100vh;
-            color: #fff;
-        }
-
-        /* ヘッダー */
-        header {
-            position: sticky;
-            top: 0;
-            background: rgba(26, 26, 46, 0.95);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            z-index: 10;
-            padding: 12px 16px;
-        }
-
-        .header-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .header-title {
-            font-weight: 700;
-            font-size: 18px;
-            color: #fff;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .header-title::before {
-            content: "💪";
-        }
-
-        .refresh-btn {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: #fff;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .refresh-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        /* メインコンテンツ */
-        main {
-            padding: 16px;
-            max-width: 480px;
-            margin: 0 auto;
-        }
-
-        /* アバターセクション */
-        .avatar-section {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        .avatar-container {
-            position: relative;
-            display: inline-block;
-        }
-
-        .avatar-img {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 60px;
-            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4);
-            border: 4px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .avatar-level-badge {
-            position: absolute;
-            bottom: -5px;
-            right: -5px;
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: #fff;
-            font-size: 14px;
-            font-weight: 700;
-            padding: 6px 12px;
-            border-radius: 20px;
-            box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);
-        }
-
-        .user-name {
-            font-size: 22px;
-            font-weight: 700;
-            margin-top: 12px;
-            color: #fff;
-        }
-
-        .user-title {
-            font-size: 14px;
-            color: #a0aec0;
-            margin-top: 4px;
-        }
-
-        /* レベル & XPセクション */
-        .level-section {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            padding: 16px;
-            margin-bottom: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .level-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-
-        .level-info {
-            display: flex;
-            align-items: baseline;
-            gap: 8px;
-        }
-
-        .level-label {
-            font-size: 14px;
-            color: #a0aec0;
-        }
-
-        .level-value {
-            font-size: 28px;
-            font-weight: 700;
-            color: #f5576c;
-        }
-
-        .xp-info {
-            text-align: right;
-        }
-
-        .xp-current {
-            font-size: 16px;
-            font-weight: 600;
-            color: #667eea;
-        }
-
-        .xp-next {
-            font-size: 12px;
-            color: #a0aec0;
-        }
-
-        .xp-bar-container {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            height: 12px;
-            overflow: hidden;
-        }
-
-        .xp-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-            border-radius: 10px;
-            transition: width 0.5s ease;
-        }
-
-        /* ストリークセクション */
-        .streak-section {
-            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
-            border-radius: 16px;
-            padding: 16px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 8px 32px rgba(255, 107, 53, 0.3);
-        }
-
-        .streak-icon {
-            font-size: 40px;
-        }
-
-        .streak-info {
-            flex: 1;
-            margin-left: 16px;
-        }
-
-        .streak-label {
-            font-size: 14px;
-            opacity: 0.9;
-        }
-
-        .streak-value {
-            font-size: 32px;
-            font-weight: 700;
-        }
-
-        .streak-unit {
-            font-size: 14px;
-            opacity: 0.9;
-        }
-
-        /* レーダーチャートセクション */
-        .chart-section {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            padding: 16px;
-            margin-bottom: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .section-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .chart-container {
-            position: relative;
-            height: 280px;
-        }
-
-        /* ステータス一覧 */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-top: 16px;
-        }
-
-        .stat-card {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            padding: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .stat-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-
-        .stat-icon {
-            font-size: 20px;
-        }
-
-        .stat-name {
-            font-size: 12px;
-            color: #a0aec0;
-        }
-
-        .stat-value {
-            font-size: 24px;
-            font-weight: 700;
-        }
-
-        .stat-bar-container {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 6px;
-            height: 6px;
-            margin-top: 8px;
-            overflow: hidden;
-        }
-
-        .stat-bar {
-            height: 100%;
-            border-radius: 6px;
-            transition: width 0.5s ease;
-        }
-
-        .stat-strength .stat-value { color: #f5576c; }
-        .stat-strength .stat-bar { background: #f5576c; }
-
-        .stat-endurance .stat-value { color: #43e97b; }
-        .stat-endurance .stat-bar { background: #43e97b; }
-
-        .stat-skill .stat-value { color: #667eea; }
-        .stat-skill .stat-bar { background: #667eea; }
-
-        .stat-mental .stat-value { color: #f093fb; }
-        .stat-mental .stat-bar { background: #f093fb; }
-
-        .stat-knowledge .stat-value { color: #4facfe; }
-        .stat-knowledge .stat-bar { background: #4facfe; }
-
-        .stat-consistency .stat-value { color: #fa709a; }
-        .stat-consistency .stat-bar { background: #fa709a; }
-
-        /* 成長ログセクション */
-        .growth-section {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            padding: 16px;
-            margin-bottom: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .growth-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .growth-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 10px;
-        }
-
-        .growth-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            background: rgba(102, 126, 234, 0.2);
-        }
-
-        .growth-content {
-            flex: 1;
-        }
-
-        .growth-text {
-            font-size: 14px;
-            color: #fff;
-        }
-
-        .growth-time {
-            font-size: 12px;
-            color: #a0aec0;
-            margin-top: 2px;
-        }
-
-        .growth-xp {
-            font-size: 14px;
-            font-weight: 600;
-            color: #43e97b;
-        }
-
-        /* バッジセクション */
-        .badges-section {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            padding: 16px;
-            margin-bottom: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .badges-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-
-        .badge-item {
-            width: 56px;
-            height: 56px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.1);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 28px;
-            transition: transform 0.2s;
-        }
-
-        .badge-item:hover {
-            transform: scale(1.1);
-        }
-
-        .badge-item.locked {
-            opacity: 0.3;
-            filter: grayscale(100%);
-        }
-
-        /* ナビゲーション */
-        .nav-section {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-
-        .nav-btn {
-            flex: 1;
-            padding: 14px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            background: rgba(255, 255, 255, 0.05);
-            color: #fff;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .nav-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        /* ローディング */
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #a0aec0;
-        }
-
-        .loading-spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid rgba(255, 255, 255, 0.1);
-            border-top-color: #667eea;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 16px;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* 空状態 */
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #a0aec0;
-        }
-
-        .empty-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>筋トレフォーム分析ツール</title>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <header>
-        <div class="header-content">
-            <div class="header-title">STATUS</div>
-            <button class="refresh-btn" id="refreshBtn">↻ 更新</button>
-        </div>
-    </header>
+    <div class="container">
+        <!-- ヘッダー -->
+        <header class="header">
+            <h1>筋トレフォーム分析ツール</h1>
+            <p class="subtitle">リアルタイム回数カウント & AI評価</p>
+        </header>
 
-    <main>
-        <!-- ローディング表示 -->
-        <div id="loadingView" class="loading">
-            <div class="loading-spinner"></div>
-            <div>読み込み中...</div>
-        </div>
+        <!-- メインコンテンツ -->
+        <main class="main-content">
+            <!-- ビデオエリア -->
+            <div class="video-container">
+                <video id="video" autoplay playsinline></video>
+                <canvas id="canvas"></canvas>
 
-        <!-- メインコンテンツ（読み込み後に表示） -->
-        <div id="mainContent" style="display: none;">
-
-            <!-- アバターセクション -->
-            <div class="avatar-section">
-                <div class="avatar-container">
-                    <div class="avatar-img" id="avatarImg">🦾</div>
-                    <div class="avatar-level-badge" id="avatarLevel">Lv.1</div>
+                <!-- オーバーレイ情報 -->
+                <div class="overlay-info">
+                    <div class="info-item mode">
+                        <span class="label">Mode:</span>
+                        <span id="modeDisplay">AUTO</span>
+                    </div>
+                    <div class="info-item exercise">
+                        <span class="label">Exercise:</span>
+                        <span id="exerciseDisplay">検出中...</span>
+                    </div>
+                    <div class="info-item count">
+                        <span id="countDisplay">0</span>
+                        <span id="targetDisplay"></span>
+                    </div>
+                    <div class="info-item stage">
+                        <span class="label">Stage:</span>
+                        <span id="stageDisplay">-</span>
+                    </div>
+                    <div class="info-item angle">
+                        <span class="label">Angle:</span>
+                        <span id="angleDisplay">-</span>
+                    </div>
+                    <div class="info-item reps-recorded">
+                        <span class="label">Reps recorded:</span>
+                        <span id="repsRecordedDisplay">0</span>
+                    </div>
                 </div>
-                <div class="user-name" id="userName">筋肉戦士</div>
-                <div class="user-title" id="userTitle">筋肉の新芽</div>
+
+                <!-- 右上ステータス -->
+                <div class="status-indicators">
+                    <div class="status-item">
+                        <span class="label">Voice:</span>
+                        <span id="voiceStatus" class="status-on">ON</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">n8n:</span>
+                        <span id="n8nStatus" class="status-off">未接続</span>
+                    </div>
+                    <div class="status-item" id="scoreContainer" style="display: none;">
+                        <span class="label">Score:</span>
+                        <span id="scoreDisplay">-</span>
+                    </div>
+                </div>
+
+                <!-- ローディング -->
+                <div id="loadingOverlay" class="loading-overlay">
+                    <div class="loading-spinner"></div>
+                    <p>MediaPipeを読み込み中...</p>
+                </div>
             </div>
 
-            <!-- レベル & XP -->
-            <div class="level-section">
-                <div class="level-header">
-                    <div class="level-info">
-                        <span class="level-label">LEVEL</span>
-                        <span class="level-value" id="levelValue">1</span>
+            <!-- コントロールパネル -->
+            <div class="control-panel">
+                <!-- 種目選択 -->
+                <div class="control-section">
+                    <h3>種目選択</h3>
+                    <div class="button-group">
+                        <button id="btnAuto" class="btn btn-mode active">自動判定</button>
+                        <button id="btnPushup" class="btn btn-exercise">腕立て伏せ</button>
+                        <button id="btnSitup" class="btn btn-exercise">腹筋</button>
+                        <button id="btnSquat" class="btn btn-exercise">スクワット</button>
                     </div>
-                    <div class="xp-info">
-                        <div class="xp-current" id="xpCurrent">0 XP</div>
-                        <div class="xp-next" id="xpNext">次のレベルまで 100 XP</div>
-                    </div>
-                </div>
-                <div class="xp-bar-container">
-                    <div class="xp-bar" id="xpBar" style="width: 0%"></div>
-                </div>
-            </div>
-
-            <!-- ストリーク -->
-            <div class="streak-section">
-                <div class="streak-icon" id="streakIcon">🔥</div>
-                <div class="streak-info">
-                    <div class="streak-label">連続トレーニング</div>
-                    <div>
-                        <span class="streak-value" id="streakValue">0</span>
-                        <span class="streak-unit">日継続中</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- レーダーチャート -->
-            <div class="chart-section">
-                <div class="section-title">📊 ステータス</div>
-                <div class="chart-container">
-                    <canvas id="radarChart"></canvas>
                 </div>
 
-                <!-- ステータス一覧 -->
-                <div class="stats-grid">
-                    <div class="stat-card stat-strength">
-                        <div class="stat-header">
-                            <span class="stat-icon">💪</span>
-                            <span class="stat-name">筋力</span>
-                        </div>
-                        <div class="stat-value" id="statStrength">0</div>
-                        <div class="stat-bar-container">
-                            <div class="stat-bar" id="barStrength" style="width: 0%"></div>
-                        </div>
+                <!-- アクション -->
+                <div class="control-section">
+                    <h3>アクション</h3>
+                    <div class="button-group">
+                        <button id="btnReset" class="btn btn-action">リセット</button>
+                        <button id="btnVoice" class="btn btn-action active">音声 ON</button>
+                        <button id="btnEvaluate" class="btn btn-primary">AI評価</button>
                     </div>
-                    <div class="stat-card stat-endurance">
-                        <div class="stat-header">
-                            <span class="stat-icon">❤️</span>
-                            <span class="stat-name">体力</span>
-                        </div>
-                        <div class="stat-value" id="statEndurance">0</div>
-                        <div class="stat-bar-container">
-                            <div class="stat-bar" id="barEndurance" style="width: 0%"></div>
-                        </div>
+                </div>
+
+                <!-- 設定 -->
+                <div class="control-section">
+                    <h3>設定</h3>
+                    <div class="setting-item">
+                        <label for="targetCount">目標回数:</label>
+                        <input type="number" id="targetCount" min="0" value="0" placeholder="0=無制限">
+                        <button id="btnSetTarget" class="btn btn-small">設定</button>
                     </div>
-                    <div class="stat-card stat-skill">
-                        <div class="stat-header">
-                            <span class="stat-icon">⚡</span>
-                            <span class="stat-name">技術</span>
-                        </div>
-                        <div class="stat-value" id="statSkill">0</div>
-                        <div class="stat-bar-container">
-                            <div class="stat-bar" id="barSkill" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <div class="stat-card stat-mental">
-                        <div class="stat-header">
-                            <span class="stat-icon">🧠</span>
-                            <span class="stat-name">意志力</span>
-                        </div>
-                        <div class="stat-value" id="statMental">0</div>
-                        <div class="stat-bar-container">
-                            <div class="stat-bar" id="barMental" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <div class="stat-card stat-knowledge">
-                        <div class="stat-header">
-                            <span class="stat-icon">📚</span>
-                            <span class="stat-name">知識</span>
-                        </div>
-                        <div class="stat-value" id="statKnowledge">0</div>
-                        <div class="stat-bar-container">
-                            <div class="stat-bar" id="barKnowledge" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <div class="stat-card stat-consistency">
-                        <div class="stat-header">
-                            <span class="stat-icon">🔄</span>
-                            <span class="stat-name">継続運</span>
-                        </div>
-                        <div class="stat-value" id="statConsistency">0</div>
-                        <div class="stat-bar-container">
-                            <div class="stat-bar" id="barConsistency" style="width: 0%"></div>
-                        </div>
+                    <div class="setting-item">
+                        <label for="webhookUrl">n8n URL:</label>
+                        <input type="text" id="webhookUrl" placeholder="https://your-n8n.com/webhook/...">
+                        <button id="btnTestConnection" class="btn btn-small">接続テスト</button>
                     </div>
                 </div>
             </div>
 
-            <!-- 今日の成長ログ -->
-            <div class="growth-section">
-                <div class="section-title">📈 今日の成長</div>
-                <div class="growth-list" id="growthList">
-                    <div class="empty-state">
-                        <div class="empty-icon">🏋️</div>
-                        <div>今日はまだトレーニングしていません</div>
+            <!-- 評価結果パネル -->
+            <div id="evaluationPanel" class="evaluation-panel" style="display: none;">
+                <h3>AI評価結果</h3>
+                <div class="evaluation-content">
+                    <div class="score-display">
+                        <span class="score-label">総合スコア</span>
+                        <span id="evaluationScore" class="score-value">-</span>
+                        <span class="score-max">/100</span>
+                    </div>
+                    <div class="comment-display">
+                        <p id="evaluationComment"></p>
                     </div>
                 </div>
+                <button id="btnCloseEvaluation" class="btn btn-small">閉じる</button>
             </div>
+        </main>
 
-            <!-- 獲得バッジ -->
-            <div class="badges-section">
-                <div class="section-title">🏆 獲得バッジ</div>
-                <div class="badges-grid" id="badgesGrid">
-                    <!-- バッジはJSで動的に追加 -->
-                </div>
-            </div>
+        <!-- フッター -->
+        <footer class="footer">
+            <p>操作: 種目ボタンで切り替え | リセットでカウント初期化 | AI評価でフォーム分析</p>
+        </footer>
+    </div>
 
-            <!-- ナビゲーション -->
-            <div class="nav-section">
-                <button class="nav-btn" id="navList">📋 クエスト</button>
-                <button class="nav-btn" id="navProfile">👤 プロフィール</button>
-            </div>
+    <!-- MediaPipe -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js" crossorigin="anonymous"></script>
 
-        </div>
-    </main>
-
-    <script>
-        // ========== 設定 ==========
-        // ステータス用LIFF ID（LINE Developers Consoleで確認）
-        const LIFF_ID = "2008544549-mDb15VqZ";
-        const API_BASE = "https://lumicreate.xvps.jp/webhook";
-
-        let userId = null;
-        let radarChart = null;
-
-        // ========== レベルテーブル ==========
-        const LEVEL_TABLE = [
-            { level: 1, xp: 0 },
-            { level: 2, xp: 100 },
-            { level: 3, xp: 300 },
-            { level: 4, xp: 600 },
-            { level: 5, xp: 1000 },
-            { level: 6, xp: 1500 },
-            { level: 7, xp: 2100 },
-            { level: 8, xp: 2800 },
-            { level: 9, xp: 3600 },
-            { level: 10, xp: 4500 },
-            { level: 15, xp: 10000 },
-            { level: 20, xp: 20000 },
-            { level: 30, xp: 50000 },
-            { level: 50, xp: 150000 },
-        ];
-
-        // ========== 称号テーブル ==========
-        const TITLE_TABLE = [
-            { level: 1, title: "筋肉の新芽" },
-            { level: 5, title: "胸の勇者" },
-            { level: 10, title: "脚の覇者" },
-            { level: 20, title: "筋肉魔導士" },
-            { level: 30, title: "筋肉王" },
-            { level: 50, title: "筋肉神" },
-        ];
-
-        // ========== アバター絵文字テーブル ==========
-        const AVATAR_TABLE = [
-            { level: 1, emoji: "🦾" },
-            { level: 5, emoji: "💪" },
-            { level: 10, emoji: "🏋️" },
-            { level: 20, emoji: "🦸" },
-            { level: 30, emoji: "⚔️" },
-            { level: 50, emoji: "👑" },
-        ];
-
-        // ========== 初期化 ==========
-        async function init() {
-            try {
-                await liff.init({ liffId: LIFF_ID });
-                if (!liff.isLoggedIn()) {
-                    liff.login();
-                    return;
-                }
-                const profile = await liff.getProfile();
-                userId = profile.userId;
-
-                bindUI();
-                await loadStatus();
-            } catch (e) {
-                console.error("LIFF初期化エラー:", e);
-                alert("初期化に失敗しました");
-            }
-        }
-
-        // ========== UI バインド ==========
-        function bindUI() {
-            document.getElementById("refreshBtn").onclick = loadStatus;
-
-            document.getElementById("navList").onclick = () => {
-                window.location.href = "https://liff.line.me/2008372898-2q9qWmxv";
-            };
-
-            document.getElementById("navProfile").onclick = () => {
-                // プロフィール画面へ遷移
-                window.location.href = "https://liff.line.me/2008544549-Profile";
-            };
-        }
-
-        // ========== ステータス読み込み ==========
-        async function loadStatus() {
-            showLoading(true);
-
-            try {
-                const url = `${API_BASE}/status?user_id=${encodeURIComponent(userId)}`;
-                console.log("[STATUS] request:", url);
-
-                const res = await fetch(url);
-                console.log("[STATUS] status:", res.status);
-
-                if (!res.ok) {
-                    // APIがまだない場合はデモデータを使用
-                    console.warn("[STATUS] APIエラー、デモデータを使用");
-                    renderStatus(getDemoData());
-                    return;
-                }
-
-                const text = await res.text();
-                if (!text) {
-                    renderStatus(getDemoData());
-                    return;
-                }
-
-                const data = JSON.parse(text);
-                console.log("[STATUS] data:", data);
-                renderStatus(data);
-
-            } catch (e) {
-                console.error("[STATUS] fetch error:", e);
-                // エラー時もデモデータを表示
-                renderStatus(getDemoData());
-            }
-        }
-
-        // ========== デモデータ ==========
-        function getDemoData() {
-            return {
-                user: {
-                    name: "筋肉戦士",
-                    level: 3,
-                    xp: 250,
-                    streak: 7,
-                    avatar_level: 1
-                },
-                stats: {
-                    strength: 45,
-                    endurance: 30,
-                    skill: 20,
-                    mental: 35,
-                    knowledge: 15,
-                    consistency: 50
-                },
-                growth_logs: [
-                    { type: "プッシュアップ", reps: 15, xp: 30, time: "10:30" },
-                    { type: "スクワット", reps: 20, xp: 40, time: "10:45" }
-                ],
-                badges: [
-                    { id: 1, name: "初トレーニング", icon: "🎯", earned: true },
-                    { id: 2, name: "3日連続", icon: "🔥", earned: true },
-                    { id: 3, name: "7日連続", icon: "⭐", earned: true },
-                    { id: 4, name: "30日連続", icon: "🏆", earned: false },
-                    { id: 5, name: "腕立て100回", icon: "💪", earned: false },
-                    { id: 6, name: "スクワット100回", icon: "🦵", earned: false },
-                ]
-            };
-        }
-
-        // ========== ステータス描画 ==========
-        function renderStatus(data) {
-            const user = data.user || {};
-            const stats = data.stats || {};
-            const growthLogs = data.growth_logs || [];
-            const badges = data.badges || [];
-
-            // アバター & 名前
-            const level = user.level || 1;
-            document.getElementById("avatarImg").textContent = getAvatarEmoji(level);
-            document.getElementById("avatarLevel").textContent = `Lv.${level}`;
-            document.getElementById("userName").textContent = user.name || "筋肉戦士";
-            document.getElementById("userTitle").textContent = getTitle(level);
-
-            // レベル & XP
-            const xp = user.xp || 0;
-            const { currentLevelXP, nextLevelXP, progress } = calculateLevelProgress(level, xp);
-
-            document.getElementById("levelValue").textContent = level;
-            document.getElementById("xpCurrent").textContent = `${xp} XP`;
-            document.getElementById("xpNext").textContent = `次のレベルまで ${nextLevelXP - xp} XP`;
-            document.getElementById("xpBar").style.width = `${progress}%`;
-
-            // ストリーク
-            const streak = user.streak || 0;
-            document.getElementById("streakValue").textContent = streak;
-            document.getElementById("streakIcon").textContent = getStreakIcon(streak);
-
-            // ステータス値
-            const statValues = {
-                strength: stats.strength || 0,
-                endurance: stats.endurance || 0,
-                skill: stats.skill || 0,
-                mental: stats.mental || 0,
-                knowledge: stats.knowledge || 0,
-                consistency: stats.consistency || 0
-            };
-
-            // 各ステータスを更新
-            const maxStat = 100; // 最大値
-            Object.keys(statValues).forEach(key => {
-                const value = statValues[key];
-                const capitalKey = key.charAt(0).toUpperCase() + key.slice(1);
-                document.getElementById(`stat${capitalKey}`).textContent = value;
-                document.getElementById(`bar${capitalKey}`).style.width = `${Math.min(value, maxStat)}%`;
-            });
-
-            // レーダーチャート
-            renderRadarChart(statValues);
-
-            // 成長ログ
-            renderGrowthLogs(growthLogs);
-
-            // バッジ
-            renderBadges(badges);
-
-            showLoading(false);
-        }
-
-        // ========== レーダーチャート描画 ==========
-        function renderRadarChart(stats) {
-            const ctx = document.getElementById("radarChart").getContext("2d");
-
-            if (radarChart) {
-                radarChart.destroy();
-            }
-
-            radarChart = new Chart(ctx, {
-                type: "radar",
-                data: {
-                    labels: ["筋力", "体力", "技術", "意志力", "知識", "継続運"],
-                    datasets: [{
-                        label: "ステータス",
-                        data: [
-                            stats.strength,
-                            stats.endurance,
-                            stats.skill,
-                            stats.mental,
-                            stats.knowledge,
-                            stats.consistency
-                        ],
-                        backgroundColor: "rgba(102, 126, 234, 0.3)",
-                        borderColor: "rgba(102, 126, 234, 1)",
-                        borderWidth: 2,
-                        pointBackgroundColor: "rgba(102, 126, 234, 1)",
-                        pointBorderColor: "#fff",
-                        pointBorderWidth: 2,
-                        pointRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        r: {
-                            beginAtZero: true,
-                            max: 100,
-                            ticks: {
-                                stepSize: 20,
-                                color: "rgba(255, 255, 255, 0.5)",
-                                backdropColor: "transparent"
-                            },
-                            grid: {
-                                color: "rgba(255, 255, 255, 0.1)"
-                            },
-                            angleLines: {
-                                color: "rgba(255, 255, 255, 0.1)"
-                            },
-                            pointLabels: {
-                                color: "#fff",
-                                font: {
-                                    size: 12,
-                                    weight: "600"
-                                }
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    }
-                }
-            });
-        }
-
-        // ========== 成長ログ描画 ==========
-        function renderGrowthLogs(logs) {
-            const container = document.getElementById("growthList");
-
-            if (!logs || logs.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">🏋️</div>
-                        <div>今日はまだトレーニングしていません</div>
-                    </div>
-                `;
-                return;
-            }
-
-            container.innerHTML = logs.map(log => `
-                <div class="growth-item">
-                    <div class="growth-icon">${getExerciseIcon(log.type)}</div>
-                    <div class="growth-content">
-                        <div class="growth-text">${log.type} ${log.reps}回</div>
-                        <div class="growth-time">${log.time || ""}</div>
-                    </div>
-                    <div class="growth-xp">+${log.xp} XP</div>
-                </div>
-            `).join("");
-        }
-
-        // ========== バッジ描画 ==========
-        function renderBadges(badges) {
-            const container = document.getElementById("badgesGrid");
-
-            if (!badges || badges.length === 0) {
-                container.innerHTML = `<div style="color: #a0aec0;">まだバッジを獲得していません</div>`;
-                return;
-            }
-
-            container.innerHTML = badges.map(badge => `
-                <div class="badge-item ${badge.earned ? '' : 'locked'}" title="${badge.name}">
-                    ${badge.icon}
-                </div>
-            `).join("");
-        }
-
-        // ========== ヘルパー関数 ==========
-        function getTitle(level) {
-            let title = "筋肉の新芽";
-            for (const t of TITLE_TABLE) {
-                if (level >= t.level) title = t.title;
-            }
-            return title;
-        }
-
-        function getAvatarEmoji(level) {
-            let emoji = "🦾";
-            for (const a of AVATAR_TABLE) {
-                if (level >= a.level) emoji = a.emoji;
-            }
-            return emoji;
-        }
-
-        function getStreakIcon(streak) {
-            if (streak >= 30) return "🔥🔥🔥";
-            if (streak >= 14) return "🔥🔥";
-            if (streak >= 7) return "🔥";
-            if (streak >= 3) return "✨";
-            return "💫";
-        }
-
-        function calculateLevelProgress(level, xp) {
-            let currentLevelXP = 0;
-            let nextLevelXP = 100;
-
-            for (let i = 0; i < LEVEL_TABLE.length; i++) {
-                if (LEVEL_TABLE[i].level === level) {
-                    currentLevelXP = LEVEL_TABLE[i].xp;
-                    nextLevelXP = LEVEL_TABLE[i + 1]?.xp || currentLevelXP + 1000;
-                    break;
-                }
-            }
-
-            const progress = ((xp - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100;
-            return { currentLevelXP, nextLevelXP, progress: Math.max(0, Math.min(100, progress)) };
-        }
-
-        function getExerciseIcon(type) {
-            const icons = {
-                "プッシュアップ": "💪",
-                "スクワット": "🦵",
-                "プランク": "🧘",
-                "ストレッチ": "🙆",
-                "腹筋": "🔥",
-                "ランニング": "🏃"
-            };
-            return icons[type] || "🏋️";
-        }
-
-        function showLoading(show) {
-            document.getElementById("loadingView").style.display = show ? "block" : "none";
-            document.getElementById("mainContent").style.display = show ? "none" : "block";
-        }
-
-        // ========== 起動 ==========
-        init();
-    </script>
+    <!-- アプリケーション -->
+    <script src="js/voice.js"></script>
+    <script src="js/counter.js"></script>
+    <script src="js/pose.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
